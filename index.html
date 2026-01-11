@@ -2,50 +2,53 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Dekopin Invaders</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
         body {
             background-color: #020617;
             color: white;
             margin: 0;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
+            min-height: 100dvh;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         #game-container {
             position: relative;
-            width: 600px;
-            height: 400px;
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 3 / 2;
             background: linear-gradient(to bottom, #0f172a, #020617);
-            border: 4px solid #1e293b;
+            border: 3px solid #1e293b;
             border-radius: 8px;
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
-        canvas {
+        @media (max-width: 480px) {
+            #game-container {
+                aspect-ratio: 9 / 14;
+                max-height: 70vh;
+                max-height: 70dvh;
+            }
+        }
+        canvas#gameCanvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-        }
-        #video-preview {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            width: 120px;
-            height: 90px;
-            border: 2px solid #334155;
-            border-radius: 4px;
-            transform: scaleX(-1);
-            background: #000;
         }
         .overlay {
             position: absolute;
@@ -56,29 +59,72 @@
             justify-content: center;
             background: rgba(0,0,0,0.7);
             z-index: 50;
+            padding: 20px;
+            text-align: center;
+        }
+        .header-section {
+            margin-bottom: 16px;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+        }
+        .header-section h1 {
+            font-size: clamp(1.5rem, 5vw, 1.875rem);
+        }
+        .header-section p {
+            font-size: clamp(0.75rem, 2.5vw, 0.875rem);
+        }
+        .footer-section {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            font-size: clamp(0.7rem, 2.5vw, 0.875rem);
+            color: #64748b;
+            width: 100%;
+            max-width: 600px;
+        }
+        #start-btn {
+            padding: 12px 32px;
+            font-size: clamp(0.875rem, 3vw, 1rem);
+            background: #2563eb;
+            border: none;
+            border-radius: 9999px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            touch-action: manipulation;
+        }
+        #start-btn:hover, #start-btn:active {
+            background: #3b82f6;
+            transform: scale(1.05);
+        }
+        #menu-title {
+            font-size: clamp(1.5rem, 6vw, 2.25rem);
+        }
+        #menu-score {
+            font-size: clamp(1rem, 4vw, 1.25rem);
         }
     </style>
 </head>
 <body>
 
-    <div class="mb-4 text-center">
-        <h1 class="text-3xl font-black text-blue-400 tracking-tighter">DEKOPIN INVADERS</h1>
-        <p class="text-slate-400 text-sm">手を左右に動かして移動、人差し指をピンッと立てて発射！</p>
+    <div class="header-section">
+        <h1 class="font-black text-blue-400 tracking-tighter">DEKOPIN INVADERS</h1>
+        <p class="text-slate-400">手を左右に動かして移動、人差し指をピンッと立てて発射！</p>
     </div>
 
     <div id="game-container">
         <!-- ゲーム画面 -->
         <canvas id="gameCanvas"></canvas>
-        <!-- カメラ映像（プレビュー用） -->
-        <canvas id="video-preview"></canvas>
         
         <!-- スタート/ゲームオーバー画面 -->
         <div id="menu-overlay" class="overlay">
-            <h2 id="menu-title" class="text-4xl font-bold mb-4">READY?</h2>
-            <p id="menu-score" class="mb-6 text-xl text-yellow-400"></p>
-            <button id="start-btn" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-full font-bold transition-all transform hover:scale-105">
-                START GAME
-            </button>
+            <h2 id="menu-title" class="font-bold mb-4">READY?</h2>
+            <p id="menu-score" class="mb-6 text-yellow-400"></p>
+            <button id="start-btn">START GAME</button>
         </div>
 
         <!-- ローディング -->
@@ -88,7 +134,7 @@
         </div>
     </div>
 
-    <div class="mt-6 flex gap-10 text-sm text-slate-500">
+    <div class="footer-section">
         <div class="flex items-center gap-2">
             <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
             <span>AI Tracking Active</span>
@@ -96,14 +142,12 @@
         <div id="debug-info">Gesture: ---</div>
     </div>
 
-    <video id="input_video" style="display:none"></video>
+    <video id="input_video" style="display:none" playsinline></video>
 
     <script>
         const videoElement = document.getElementById('input_video');
         const gameCanvas = document.getElementById('gameCanvas');
         const ctx = gameCanvas.getContext('2d');
-        const previewCanvas = document.getElementById('video-preview');
-        const pCtx = previewCanvas.getContext('2d');
         
         const menuOverlay = document.getElementById('menu-overlay');
         const menuTitle = document.getElementById('menu-title');
@@ -115,33 +159,48 @@
         // ゲーム状態
         let isPlaying = false;
         let score = 0;
-        let playerX = 300;
+        let playerX = 0.5; // 0-1の正規化座標で管理
         let bullets = [];
         let invaders = [];
-        let invaderSpeed = 1;
+        let invaderSpeed = 0.002; // 正規化速度
         let invaderDirection = 1;
         let lastShootTime = 0;
-        let wasIndexFolded = false; // デコピン判定用：直前に指が曲がっていたか
+        let wasIndexFolded = false;
 
-        const PLAYER_SIZE = 30;
+        // ゲーム設定（正規化座標）
+        const PLAYER_Y = 0.9;
         const INVADER_ROWS = 3;
         const INVADER_COLS = 6;
-        const INVADER_SIZE = 30;
 
-        // ゲーム初期化
+        // 実際のキャンバスサイズ
+        let canvasWidth = 600;
+        let canvasHeight = 400;
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvasWidth = container.clientWidth;
+            canvasHeight = container.clientHeight;
+            gameCanvas.width = canvasWidth;
+            gameCanvas.height = canvasHeight;
+        }
+
         function initGame() {
             score = 0;
-            playerX = 300;
+            playerX = 0.5;
             bullets = [];
             invaders = [];
-            invaderSpeed = 1;
+            invaderSpeed = 0.002;
             invaderDirection = 1;
 
-            for (let r = 0; r < INVADER_ROWS; r++) {
-                for (let c = 0; c < INVADER_COLS; c++) {
+            const isMobile = window.innerWidth <= 480;
+            const cols = isMobile ? 4 : INVADER_COLS;
+            const rows = isMobile ? 4 : INVADER_ROWS;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
                     invaders.push({
-                        x: 50 + c * 80,
-                        y: 50 + r * 50,
+                        x: 0.1 + c * (0.8 / cols),
+                        y: 0.1 + r * 0.1,
                         alive: true
                     });
                 }
@@ -150,8 +209,8 @@
 
         function shoot() {
             const now = Date.now();
-            if (now - lastShootTime > 300) { // 連射制限
-                bullets.push({ x: playerX, y: 360 });
+            if (now - lastShootTime > 300) {
+                bullets.push({ x: playerX, y: PLAYER_Y - 0.05 });
                 lastShootTime = now;
             }
         }
@@ -161,7 +220,7 @@
 
             // 弾の移動
             bullets.forEach((b, i) => {
-                b.y -= 7;
+                b.y -= 0.02;
                 if (b.y < 0) bullets.splice(i, 1);
             });
 
@@ -170,24 +229,22 @@
             invaders.forEach(inv => {
                 if (!inv.alive) return;
                 inv.x += invaderSpeed * invaderDirection;
-                if (inv.x > gameCanvas.width - 40 || inv.x < 10) hitEdge = true;
+                if (inv.x > 0.95 || inv.x < 0.05) hitEdge = true;
                 
-                // 自機との当たり判定
-                if (Math.abs(inv.x - playerX) < 25 && inv.y > 350) gameOver();
-                // 地面到達
-                if (inv.y > 370) gameOver();
+                if (Math.abs(inv.x - playerX) < 0.05 && inv.y > PLAYER_Y - 0.05) gameOver();
+                if (inv.y > PLAYER_Y + 0.05) gameOver();
             });
 
             if (hitEdge) {
                 invaderDirection *= -1;
-                invaders.forEach(inv => inv.y += 20);
-                invaderSpeed += 0.1;
+                invaders.forEach(inv => inv.y += 0.05);
+                invaderSpeed += 0.0002;
             }
 
-            // 弾とインベーダーの当たり判定
+            // 当たり判定
             bullets.forEach((b, bi) => {
                 invaders.forEach((inv, ii) => {
-                    if (inv.alive && Math.abs(b.x - inv.x) < 20 && Math.abs(b.y - inv.y) < 20) {
+                    if (inv.alive && Math.abs(b.x - inv.x) < 0.04 && Math.abs(b.y - inv.y) < 0.04) {
                         inv.alive = false;
                         bullets.splice(bi, 1);
                         score += 100;
@@ -197,52 +254,60 @@
 
             // クリア判定
             if (invaders.every(inv => !inv.alive)) {
-                invaderSpeed += 1;
-                initGame(); // 次のレベルへ
+                invaderSpeed += 0.001;
+                initGame();
             }
         }
 
         function draw() {
-            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
             // 星（背景）
             ctx.fillStyle = "white";
-            for(let i=0; i<10; i++) {
-                ctx.fillRect((Date.now()/50 + i*100) % 600, (i*70) % 400, 2, 2);
+            for(let i = 0; i < 15; i++) {
+                ctx.fillRect(
+                    (Date.now() / 50 + i * 100) % canvasWidth,
+                    (i * 70) % canvasHeight,
+                    2, 2
+                );
             }
 
             // 自機
+            const pxX = playerX * canvasWidth;
+            const pxY = PLAYER_Y * canvasHeight;
+            const shipSize = Math.min(canvasWidth, canvasHeight) * 0.06;
+
             ctx.fillStyle = "#3b82f6";
             ctx.beginPath();
-            ctx.moveTo(playerX, 360);
-            ctx.lineTo(playerX - 20, 390);
-            ctx.lineTo(playerX + 20, 390);
+            ctx.moveTo(pxX, pxY - shipSize * 0.5);
+            ctx.lineTo(pxX - shipSize * 0.6, pxY + shipSize * 0.5);
+            ctx.lineTo(pxX + shipSize * 0.6, pxY + shipSize * 0.5);
             ctx.fill();
-            // 自機のキャノン
+
             ctx.fillStyle = "#60a5fa";
-            ctx.fillRect(playerX - 2, 355, 4, 10);
+            ctx.fillRect(pxX - 2, pxY - shipSize * 0.7, 4, shipSize * 0.3);
 
             // 弾
             ctx.fillStyle = "#fbbf24";
             bullets.forEach(b => {
                 ctx.beginPath();
-                ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+                ctx.arc(b.x * canvasWidth, b.y * canvasHeight, 4, 0, Math.PI * 2);
                 ctx.fill();
             });
 
             // インベーダー
+            const invaderFontSize = Math.min(canvasWidth, canvasHeight) * 0.06;
+            ctx.font = `${invaderFontSize}px serif`;
             invaders.forEach(inv => {
                 if (!inv.alive) return;
-                ctx.fillStyle = "#ef4444";
-                // 簡易的なエイリアン描画
-                ctx.font = "24px serif";
-                ctx.fillText("👾", inv.x - 12, inv.y + 10);
+                ctx.fillText("👾", inv.x * canvasWidth - invaderFontSize * 0.5, inv.y * canvasHeight + invaderFontSize * 0.3);
             });
 
             // スコア
             ctx.fillStyle = "white";
-            ctx.font = "bold 16px sans-serif";
-            ctx.fillText(`SCORE: ${score}`, 20, 30);
+            const scoreFontSize = Math.min(canvasWidth, canvasHeight) * 0.04;
+            ctx.font = `bold ${scoreFontSize}px sans-serif`;
+            ctx.fillText(`SCORE: ${score}`, 15, 25);
         }
 
         function gameOver() {
@@ -256,26 +321,18 @@
         function onResults(results) {
             loadingOverlay.style.display = 'none';
 
-            // プレビューの描画
-            pCtx.save();
-            pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-            pCtx.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
-
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
 
-                // 1. 移動：手の中央（中指の付け根付近）のX座標を使用
-                // 鏡合わせなので 1.0 - x
-                const targetX = (1.0 - landmarks[9].x) * gameCanvas.width;
-                // スムーズな移動
+                // 移動：鏡合わせ
+                const targetX = 1.0 - landmarks[9].x;
                 playerX += (targetX - playerX) * 0.3;
+                playerX = Math.max(0.05, Math.min(0.95, playerX));
 
-                // 2. デコピン判定 (人差し指: 8番が指先, 6番が第2関節)
-                // 指先が第2関節より下なら「曲げている」とみなす
+                // デコピン判定
                 const isIndexExtended = landmarks[8].y < landmarks[6].y;
                 
                 if (isIndexExtended && wasIndexFolded) {
-                    // 「曲げ」から「伸び」に変わった瞬間にショット！
                     if (isPlaying) shoot();
                     debugInfo.innerText = "Gesture: DEKOPIN! 💥";
                     debugInfo.className = "text-yellow-400 font-bold";
@@ -286,7 +343,6 @@
 
                 wasIndexFolded = !isIndexExtended;
             }
-            pCtx.restore();
 
             update();
             draw();
@@ -320,14 +376,12 @@
             menuOverlay.style.display = 'none';
         });
 
+        window.addEventListener('resize', resizeCanvas);
+
         window.onload = () => {
-            gameCanvas.width = 600;
-            gameCanvas.height = 400;
-            previewCanvas.width = 120;
-            previewCanvas.height = 90;
+            resizeCanvas();
             camera.start();
         };
     </script>
 </body>
-
 </html>
